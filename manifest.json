@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "sebas.notifications",
+  "name": "Notification Center",
+  "version": "1.2.0",
+  "author": "Sebas · based on Omarchy",
+  "description": "Quiet grouped toasts, searchable history, actions and timed Focus",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Notification Center",
+    "description": "History, unread notifications and Focus",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.notifications"
+  }
+}

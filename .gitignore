@@ -1,0 +1,6 @@
+node_modules/
+*.qmlc
+*.jsc
+*.log
+*.bak
+.DS_Store
