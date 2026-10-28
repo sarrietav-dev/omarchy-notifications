@@ -50,7 +50,7 @@ o.bind("SUPER + ALT + N", "Toggle notification Focus", "omarchy-shell notificati
 | Click a toast | Invoke its default action or focus its app |
 | × / right- or middle-click / horizontal drag | Dismiss a toast |
 | Click a center card / Expand | Show full content and available actions |
-| Snooze ▾ | Schedule a reminder with the calendar presets below |
+| Hover → snooze icon | Schedule a reminder with the calendar presets below |
 | Snoozed · N | Inspect scheduled reminders and show one early |
 | Settings | Grouping, image previews, reduced motion, limits and app delivery |
 
@@ -76,6 +76,12 @@ is on or the app is Quiet/Blocked. **Show now** explicitly cancels that delay.
 
 ### Center and attention management
 
+- Compact, macOS-inspired density: a left-aligned 32 px app icon, one title line,
+  two body lines, tighter padding and a theme-colored hairline frame. Hover or
+  keyboard selection reveals header controls without resizing the card; expand
+  to reveal full content, media and native action buttons. Theme fonts and corner
+  settings are unchanged. A representative message measures 83 px rather than
+  164 px at the default 12 px font scale; exact heights depend on content/theme.
 - Three visible toast groups by default, with overflow routed to the center.
 - Bursts from the same app within 90 seconds share a toast; records remain separate.
 - Critical alerts are distinct, sorted first and persistent, never merged together.
@@ -86,6 +92,12 @@ is on or the app is Quiet/Blocked. **Show now** explicitly cancels that delay.
 - Images, native action buttons/overflow and sender `value` progress hints. Resident
   incomplete progress does not expire. Transient events stay out of history unless
   you explicitly turn one into a snoozed reminder.
+- The icon slot prefers a supplied website/notification icon or avatar, falls back
+  to the browser/application icon on missing or broken images, then to a glyph.
+  The sender's local `image-path` is preferred over Quickshell's provider URL,
+  because the provider paints a placeholder for a file that no longer exists and
+  would otherwise defeat the fallback. Remote icon URLs are never fetched. No
+  website favicon discovery happens: the page/browser chooses the supplied icon.
 
 Keyboard: Down from search enters the list; arrows/J/K navigate, Space expands,
 Enter opens, Delete dismisses, Shift+Delete dismisses a group, `/` searches and

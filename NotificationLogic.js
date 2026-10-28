@@ -180,6 +180,21 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
+// The desktop spec allows an `image-path` hint (a file/URL the sender chose)
+// alongside the provider URL Quickshell builds from it. The provider renders a
+// placeholder for a missing file, which makes a dead icon look valid; keeping
+// the local path lets Image report the failure and the card fall back to the
+// application icon. A remote path is dropped rather than fetched implicitly.
+function snapshotImage(notification) {
+  var n = notification || {}
+  var hinted = stringHint(n.hints, "image-path")
+  if (hinted) return localImageFile(hinted)
+  var provided = String(n.image || "")
+  if (provided.charAt(0) === "/" || /^file:\/\//i.test(provided)) return provided
+  if (/^image:\/\//i.test(provided)) return provided
+  return ""
+}
+
 function snapshotOf(notification, timestamp) {
   var n = notification || {}
   var id = n.id || 0
@@ -198,7 +213,7 @@ function snapshotOf(notification, timestamp) {
     remindedAt: 0,
     summary: String(n.summary || ""),
     body: n.body || "",
-    image: n.image || "",
+    image: snapshotImage(n),
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
     urgency: n.urgency,
@@ -472,6 +487,7 @@ if (typeof module !== "undefined") {
     parseExecArgv: parseExecArgv,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
     snapshotOf: snapshotOf,
+    snapshotImage: snapshotImage,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
     replacementSnapshot: replacementSnapshot,

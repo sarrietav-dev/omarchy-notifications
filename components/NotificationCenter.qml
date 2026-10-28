@@ -68,7 +68,7 @@ Item {
 
       Ui.BorderSurface {
         id: sheet
-        width: Math.min(Style.space(440), window.width - Style.space(24))
+        width: Math.min(Style.space(420), window.width - Style.space(24))
         readonly property real edgeMargin: service.barPosition === "right" ? service.barClearance : Style.gapsOut
         x: window.width - width - edgeMargin + (1 - window.reveal) * (width + edgeMargin)
         y: service.barPosition === "top" ? service.barClearance : Style.gapsOut
@@ -232,18 +232,14 @@ Item {
                 previewMedia: center.preferences.behavior.previewMedia
                 fontFamily: Style.font.family
                 actions: center.actionsFor(entry)
+                showOpenAction: true
+                onOpenRequested: center.activate(entry, "")
                 onCloseRequested: center.dismiss([entry])
                 onCardClicked: { list.currentIndex = cell.index; root.toggleExpanded(Attention.key(entry)) }
                 onExpansionRequested: root.toggleExpanded(Attention.key(entry))
                 onSnoozeRequested: function(minutes) { center.snooze(entry, minutes) }
                 onCustomSnoozeRequested: center.pickSnooze([entry])
                 onActionRequested: function(identifier) { center.activate(entry, identifier) }
-              }
-              ActionButton {
-                visible: !cell.modelData.header && !!root.expanded[Attention.key(cell.modelData.entry)]
-                anchors { right: parent.right; bottom: parent.bottom; rightMargin: Style.space(14); bottomMargin: Style.space(14) }
-                text: "Open ↗"
-                onClicked: center.activate(cell.modelData.entry, "")
               }
             }
             Text {

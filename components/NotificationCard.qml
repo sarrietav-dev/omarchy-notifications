@@ -17,16 +17,38 @@ Ui.BorderSurface {
   property bool reducedMotion: false
   property bool previewMedia: true
   property bool selected: false
+  property bool showOpenAction: false
   property int groupCount: 1
   property real remaining: -1
   property double now: Date.now()
   property var actions: []
   property string fontFamily: Style.font.family
   readonly property bool hovered: hover.hovered || snoozeMenu.opened || moreActions.opened
+  readonly property bool showControls: hovered || expanded || selected
   readonly property string cleanBody: Logic.styledBody(entry.body || "", entry.app || "", entry.appIcon || "")
-  readonly property string icon: iconSource(entry.appIcon || "")
+  readonly property var iconCandidates: Attention.iconCandidates(entry).map(iconSource).filter(function(source) { return source.length > 0 })
+  property int iconIndex: 0
+  readonly property string icon: iconIndex < iconCandidates.length ? iconCandidates[iconIndex] : ""
+  onIconCandidatesChanged: iconIndex = 0
+  readonly property string mediaSource: {
+    var candidates = Attention.iconCandidates({ image: entry.image })
+    return candidates.length > 0 ? iconSource(candidates[0]) : ""
+  }
+  readonly property bool canExpand: titleText.truncated || bodyText.truncated || !!mediaSource || actions.length > 0 || showOpenAction
+  // Keep theme colors, gradients and intentionally absent border sides, but
+  // cap the frame at a hairline rather than outlining every card heavily.
+  readonly property var cardBorder: {
+    var spec = Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border, Style.spacing.hairline)
+    return Object.assign({}, spec, { widths: {
+      top: Math.min(Style.spacing.hairline, Border.top(spec)),
+      right: Math.min(Style.spacing.hairline, Border.right(spec)),
+      bottom: Math.min(Style.spacing.hairline, Border.bottom(spec)),
+      left: Math.min(Style.spacing.hairline, Border.left(spec))
+    } })
+  }
   signal closeRequested()
   signal cardClicked()
+  signal openRequested()
   signal actionRequested(string identifier)
   signal groupRequested()
   signal expansionRequested(bool expand)
@@ -40,12 +62,11 @@ Ui.BorderSurface {
     return Quickshell.iconPath(value, true)
   }
 
-  implicitWidth: Style.space(380)
-  implicitHeight: content.implicitHeight + Style.spacing.popupPadding * 2 + borderTop + borderBottom
+  implicitWidth: Style.space(360)
+  implicitHeight: content.implicitHeight + Style.spacing.controlPaddingY * 2 + borderTop + borderBottom
   radius: Style.cornerRadius
   color: Commons.Color.notifications.background
-  borderSpec: selected ? Border.controlSpec("focus", Commons.Color.notifications.text, Commons.Color.accent)
-    : Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border, Math.max(1, Style.space(2)))
+  borderSpec: selected ? Border.controlSpec("focus", Commons.Color.notifications.text, Commons.Color.accent) : cardBorder
   Accessible.role: Accessible.Button
   Accessible.name: Attention.label(entry) + ": " + (entry.summary || "")
   HoverHandler { id: hover }
@@ -60,199 +81,221 @@ Ui.BorderSurface {
     }
   }
 
-  ColumnLayout {
+  RowLayout {
     id: content
     anchors {
       top: parent.top; left: parent.left; right: parent.right
-      topMargin: root.borderTop + Style.spacing.popupPadding
-      leftMargin: root.borderLeft + Style.spacing.popupPadding
-      rightMargin: root.borderRight + Style.spacing.popupPadding
+      topMargin: root.borderTop + Style.spacing.controlPaddingY
+      leftMargin: root.borderLeft + Style.spacing.controlPaddingX
+      rightMargin: root.borderRight + Style.spacing.controlPaddingX
     }
-    spacing: Style.spacing.rowGap
-    RowLayout {
+    spacing: Style.spacing.controlGap
+    Item {
+      Layout.preferredWidth: Style.space(32)
+      Layout.preferredHeight: Style.space(32)
+      Layout.alignment: Qt.AlignTop
+      Layout.topMargin: Style.spacing.xxs
+      Image {
+        id: iconImage
+        anchors.fill: parent
+        source: root.icon
+        sourceSize.width: 64
+        sourceSize.height: 64
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        visible: status === Image.Ready
+        onStatusChanged: {
+          if (status === Image.Error && root.iconIndex + 1 < root.iconCandidates.length)
+            root.iconIndex++
+        }
+      }
+      Text {
+        anchors.centerIn: parent
+        visible: iconImage.status !== Image.Ready
+        text: root.entry.glyph || Attention.label(root.entry).charAt(0).toUpperCase()
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.iconLarge
+        color: Commons.Color.notifications.text
+      }
+    }
+    ColumnLayout {
       Layout.fillWidth: true
-      spacing: Style.space(8)
-      Rectangle {
-        Layout.preferredWidth: Style.space(28)
-        Layout.preferredHeight: Style.space(28)
-        radius: Style.cornerRadius
-        color: "transparent"
-        Image {
-          id: iconImage
-          anchors { fill: parent; margins: Style.space(3) }
-          source: root.icon
-          sourceSize.width: 48
-          sourceSize.height: 48
-          fillMode: Image.PreserveAspectFit
-          asynchronous: true
-          visible: status === Image.Ready
+      spacing: Style.spacing.xxs
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: Style.spacing.xxs
+        Text {
+          Layout.fillWidth: true
+          text: root.entry.urgency === 2 ? "! " + Attention.label(root.entry) : Attention.label(root.entry)
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          color: root.entry.urgency === 2 ? Commons.Color.urgent : Qt.alpha(Commons.Color.notifications.text, 0.65)
+          Accessible.name: root.entry.urgency === 2 ? "Requires attention: " + Attention.label(root.entry) : text
+        }
+        Rectangle {
+          visible: root.unread
+          Layout.preferredWidth: Style.space(4)
+          Layout.preferredHeight: width
+          radius: width / 2
+          color: Commons.Color.accent
         }
         Text {
-          anchors.centerIn: parent
-          visible: iconImage.status !== Image.Ready
-          text: root.entry.glyph || Attention.label(root.entry).charAt(0).toUpperCase()
-          font.family: Style.font.family
-          font.pixelSize: Style.font.subtitle
-          color: Commons.Color.notifications.text
+          text: Attention.relative(Attention.receivedAt(root.entry) || root.now, root.now)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          color: Qt.alpha(Commons.Color.notifications.text, 0.5)
         }
-      }
-      Text {
-        Layout.fillWidth: true
-        text: Attention.label(root.entry)
-        textFormat: Text.PlainText
-        elide: Text.ElideRight
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        color: Qt.alpha(Commons.Color.notifications.text, 0.65)
-      }
-      Rectangle {
-        visible: root.unread
-        Layout.preferredWidth: Style.space(6)
-        Layout.preferredHeight: width
-        radius: width / 2
-        color: Commons.Color.accent
-      }
-      Text {
-        text: Attention.relative(Attention.receivedAt(root.entry) || root.now, root.now)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        color: Qt.alpha(Commons.Color.notifications.text, 0.5)
-      }
-      ActionButton {
-        text: "×"
-        Accessible.name: "Dismiss notification"
-        implicitWidth: Style.space(28)
-        subtle: true
-        opacity: root.hovered || activeFocus || root.selected ? 1 : 0.45
-        onClicked: root.closeRequested()
-      }
-    }
-    Text {
-      Layout.fillWidth: true
-      visible: root.entry.urgency === 2
-      text: "!  Requires attention"
-      font.family: Style.font.family
-      font.pixelSize: Style.font.caption
-      font.bold: true
-      color: Commons.Color.urgent
-    }
-    Text {
-      Layout.fillWidth: true
-      text: root.entry.summary || "Notification"
-      textFormat: Text.PlainText
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.title
-      font.weight: Font.DemiBold
-      color: Commons.Color.notifications.text
-      wrapMode: Text.Wrap
-      maximumLineCount: root.expanded ? 30 : 2
-      elide: Text.ElideRight
-    }
-    Text {
-      id: bodyText
-      Layout.fillWidth: true
-      visible: root.cleanBody.length > 0
-      text: root.cleanBody
-      textFormat: Text.StyledText
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-      lineHeight: 1.25
-      color: Qt.alpha(Commons.Color.notifications.text, 0.78)
-      wrapMode: Text.Wrap
-      maximumLineCount: root.expanded ? 100 : 3
-      elide: Text.ElideRight
-    }
-    Image {
-      Layout.fillWidth: true
-      Layout.preferredHeight: visible ? Style.space(140) : 0
-      visible: root.expanded && root.previewMedia && source.toString().length > 0 && status !== Image.Error
-      source: root.entry.image || ""
-      sourceSize.width: 760
-      sourceSize.height: 280
-      asynchronous: true
-      fillMode: Image.PreserveAspectFit
-    }
-    Rectangle {
-      Layout.fillWidth: true
-      Layout.preferredHeight: Style.space(3)
-      radius: height / 2
-      visible: root.entry.progress !== undefined && Number(root.entry.progress) >= 0
-      color: Qt.alpha(Commons.Color.accent, 0.15)
-      Rectangle {
-        width: parent.width * Math.min(100, Math.max(0, Number(root.entry.progress))) / 100
-        height: parent.height
-        radius: parent.radius
-        color: Commons.Color.accent
-      }
-    }
-    RowLayout {
-      Layout.fillWidth: true
-      spacing: Style.space(4)
-      ActionButton {
-        text: "Snooze ▾"
-        subtle: true
-        Accessible.name: "Snooze notification"
-        onClicked: snoozeMenu.open()
-        SnoozeMenu {
-          id: snoozeMenu
-          onSelected: function(value) { root.snoozeRequested(value) }
-          onCustomRequested: root.customSnoozeRequested()
-        }
-      }
-      ActionButton {
-        visible: root.groupCount > 1
-        text: "+" + (root.groupCount - 1) + " more"
-        onClicked: root.groupRequested()
-      }
-      ActionButton {
-        visible: bodyText.truncated || root.expanded || !!root.entry.image
-        text: root.expanded ? "Less" : "Expand"
-        subtle: true
-        onClicked: root.expansionRequested(!root.expanded)
-      }
-      Item { Layout.fillWidth: true }
-    }
-    RowLayout {
-      Layout.fillWidth: true
-      visible: root.actions.length > 0
-      spacing: Style.space(4)
-      Item { Layout.fillWidth: true }
-      Repeater {
-        model: root.actions.slice(0, 2)
         ActionButton {
-          required property var modelData
-          text: modelData.text
-          Layout.maximumWidth: Style.space(120)
-          onClicked: root.actionRequested(modelData.identifier)
+          visible: root.groupCount > 1
+          text: "+" + (root.groupCount - 1)
+          tooltipText: "Show grouped notifications"
+          Accessible.name: (root.groupCount - 1) + " more notifications"
+          subtle: true
+          fontSize: Style.font.caption
+          verticalPadding: Style.spacing.xxs
+          horizontalPadding: Style.spacing.xxs
+          implicitHeight: Style.space(18)
+          onClicked: root.groupRequested()
         }
-      }
-      ActionButton {
-        visible: root.actions.length > 2
-        text: "…"
-        Accessible.name: "More actions"
-        onClicked: moreActions.open()
-        NotificationMenu {
-          id: moreActions
-          Instantiator {
-            model: root.actions.slice(2)
-            delegate: NotificationMenuItem {
-              required property var modelData
-              text: modelData.text
-              onTriggered: root.actionRequested(modelData.identifier)
-            }
-            onObjectAdded: function(index, object) { moreActions.insertItem(index, object) }
-            onObjectRemoved: function(index, object) { moreActions.removeItem(object) }
+        ActionButton {
+          text: "󰒲"
+          tooltipText: "Snooze"
+          Accessible.name: "Snooze notification"
+          subtle: true
+          fontSize: Style.font.bodySmall
+          verticalPadding: Style.spacing.xxs
+          horizontalPadding: Style.spacing.xxs
+          implicitWidth: Style.space(20)
+          implicitHeight: Style.space(18)
+          opacity: root.showControls || activeFocus ? 1 : 0
+          onClicked: snoozeMenu.open()
+          SnoozeMenu {
+            id: snoozeMenu
+            onSelected: function(value) { root.snoozeRequested(value) }
+            onCustomRequested: root.customSnoozeRequested()
           }
         }
+        ActionButton {
+          visible: root.canExpand || root.expanded
+          text: root.expanded ? "󰅃" : "󰅀"
+          tooltipText: root.expanded ? "Collapse" : "Expand"
+          Accessible.name: tooltipText
+          subtle: true
+          fontSize: Style.font.bodySmall
+          verticalPadding: Style.spacing.xxs
+          horizontalPadding: Style.spacing.xxs
+          implicitWidth: Style.space(20)
+          implicitHeight: Style.space(18)
+          opacity: root.showControls || activeFocus ? 1 : 0
+          onClicked: root.expansionRequested(!root.expanded)
+        }
+        ActionButton {
+          text: "×"
+          Accessible.name: "Dismiss notification"
+          tooltipText: Accessible.name
+          subtle: true
+          fontSize: Style.font.bodySmall
+          verticalPadding: Style.spacing.xxs
+          horizontalPadding: Style.spacing.xxs
+          implicitWidth: Style.space(20)
+          implicitHeight: Style.space(18)
+          opacity: root.showControls || activeFocus ? 1 : 0
+          onClicked: root.closeRequested()
+        }
+      }
+      Text {
+        id: titleText
+        Layout.fillWidth: true
+        text: root.entry.summary || "Notification"
+        textFormat: Text.PlainText
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.subtitle
+        font.weight: Font.DemiBold
+        color: Commons.Color.notifications.text
+        wrapMode: Text.Wrap
+        maximumLineCount: root.expanded ? 30 : 1
+        elide: Text.ElideRight
+      }
+      Text {
+        id: bodyText
+        Layout.fillWidth: true
+        visible: root.cleanBody.length > 0
+        text: root.cleanBody
+        textFormat: Text.StyledText
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        lineHeight: 1.1
+        color: Qt.alpha(Commons.Color.notifications.text, 0.78)
+        wrapMode: Text.Wrap
+        maximumLineCount: root.expanded ? 100 : 2
+        elide: Text.ElideRight
+      }
+      Image {
+        Layout.fillWidth: true
+        Layout.preferredHeight: visible ? Style.space(120) : 0
+        visible: root.expanded && root.previewMedia && source.toString().length > 0 && status !== Image.Error
+        source: root.expanded && root.previewMedia ? root.mediaSource : ""
+        sourceSize.width: 720
+        sourceSize.height: 240
+        asynchronous: true
+        fillMode: Image.PreserveAspectFit
+      }
+      Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: Style.spacing.hairline
+        visible: root.entry.progress !== undefined && Number(root.entry.progress) >= 0
+        color: Qt.alpha(Commons.Color.accent, 0.15)
+        Rectangle {
+          width: parent.width * Math.min(100, Math.max(0, Number(root.entry.progress))) / 100
+          height: parent.height
+          color: Commons.Color.accent
+        }
+      }
+      RowLayout {
+        Layout.fillWidth: true
+        Layout.topMargin: Style.spacing.sm
+        visible: root.expanded && (root.actions.length > 0 || root.showOpenAction)
+        spacing: Style.spacing.sm
+        Item { Layout.fillWidth: true }
+        Repeater {
+          model: root.actions.slice(0, 2)
+          ActionButton {
+            required property var modelData
+            text: modelData.text
+            Layout.maximumWidth: Style.space(100)
+            onClicked: root.actionRequested(modelData.identifier)
+          }
+        }
+        ActionButton {
+          visible: root.actions.length > 2
+          text: "…"
+          Accessible.name: "More actions"
+          onClicked: moreActions.open()
+          NotificationMenu {
+            id: moreActions
+            Instantiator {
+              model: root.actions.slice(2)
+              delegate: NotificationMenuItem {
+                required property var modelData
+                text: modelData.text
+                onTriggered: root.actionRequested(modelData.identifier)
+              }
+              onObjectAdded: function(index, object) { moreActions.insertItem(index, object) }
+              onObjectRemoved: function(index, object) { moreActions.removeItem(object) }
+            }
+          }
+        }
+        ActionButton { visible: root.showOpenAction; text: "Open ↗"; onClicked: root.openRequested() }
       }
     }
   }
   Rectangle {
     anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 1 }
-    width: (parent.width - Style.space(28)) * Math.max(0, root.remaining)
-    height: Style.space(2)
-    radius: height
+    width: (parent.width - Style.spacing.controlPaddingX * 2) * Math.max(0, root.remaining)
+    height: Style.spacing.hairline
     visible: root.remaining >= 0
-    color: Commons.Color.notifications.countdown
+    color: Qt.alpha(Commons.Color.notifications.countdown, 0.5)
   }
 }

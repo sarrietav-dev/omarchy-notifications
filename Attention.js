@@ -1,6 +1,17 @@
 // Pure attention policy. Rows never retain QObjects.
 function key(row) { return String(row.timestamp) + "-" + String(row.originalId) }
 function receivedAt(row) { return Number(row.remindedAt) || Number(row.timestamp) || 0 }
+function iconCandidates(entry) {
+  var e = entry || {}, out = [], values = [e.image, e.appIcon]
+  values.forEach(function(value) {
+    if (typeof value !== "string" || !value || out.indexOf(value) >= 0) return
+    // Only sender-supplied local/provider images or themed icon names. Never
+    // resolve a website or fetch a remote icon as a side effect of delivery.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^(file|image):\/\//i.test(value)) return
+    out.push(value)
+  })
+  return out
+}
 function snoozeDeadline(minutes, now) {
   if (typeof minutes === "string" && /^at:\d+$/.test(minutes)) {
     var absolute = Number(minutes.slice(3))
@@ -98,6 +109,6 @@ function defaults(value) {
       reducedMotion: !!b.reducedMotion, grouping: b.grouping !== false, previewMedia: b.previewMedia !== false },
     channels: v.channels && typeof v.channels === "object" ? v.channels : {} }
 }
-if (typeof module !== "undefined") module.exports = { key: key, receivedAt: receivedAt, snoozeDeadline: snoozeDeadline,
+if (typeof module !== "undefined") module.exports = { key: key, receivedAt: receivedAt, iconCandidates: iconCandidates, snoozeDeadline: snoozeDeadline,
   snoozeOptions: snoozeOptions, parseLocalDateTime: parseLocalDateTime, channel: channel, label: label,
   plain: plain, relative: relative, bucket: bucket, groups: groups, defaults: defaults }

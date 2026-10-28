@@ -99,8 +99,8 @@ Item {
       Column {
         id: column
         anchors { right: parent.right; top: parent.top; rightMargin: window.placement.margins.right; topMargin: window.placement.margins.top }
-        width: Math.min(Style.space(380), window.width - anchors.rightMargin - Style.space(12))
-        spacing: Style.spacing.rowGap
+        width: Math.min(Style.space(360), window.width - anchors.rightMargin - Style.space(12))
+        spacing: Style.spacing.md
         move: Transition { NumberAnimation { properties: "y"; duration: center.reducedMotion ? 0 : 200; easing.type: Easing.OutCubic } }
         Repeater {
           model: visibleGroups

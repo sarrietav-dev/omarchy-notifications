@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "sebas.notifications",
   "name": "Notification Center",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "Sebas · based on Omarchy",
   "description": "Quiet grouped toasts, searchable history, actions and timed Focus",
   "kinds": [
